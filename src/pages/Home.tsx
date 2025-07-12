@@ -77,11 +77,20 @@ export const Home: React.FC = () => {
   };
 
   const updateUserGenerationTime = async () => {
-    if (!user) return;
+    if (!user || !user.cooldown_minutes) return;
+
+    // Only start cooldown if user has exhausted their daily limit
+    const newUsageToday = usageToday + proxies.length;
+    const willExhaustLimit = newUsageToday >= user.daily_limit;
+    
+    if (!willExhaustLimit) {
+      // Don't start cooldown if user still has remaining limit
+      return;
+    }
 
     const now = new Date();
-    const nextGeneration = new Date(now.getTime() + user.cooldown_minutes * 60 * 60 * 1000); // Convert hours to milliseconds
-
+    const nextGeneration = new Date(now.getTime() + user.cooldown_minutes * 60 * 60 * 1000);
+    
     try {
       const { error } = await supabase
         .from('users')
@@ -103,6 +112,7 @@ export const Home: React.FC = () => {
       console.error('Error updating generation time:', error);
     }
   };
+
   const fetchTodayUsage = async () => {
     if (!user) return;
 
@@ -283,6 +293,10 @@ export const Home: React.FC = () => {
   const markProxiesAsUsed = async () => {
     if (proxies.length === 0) return;
 
+    // Calculate if this usage will exhaust the daily limit
+    const newUsageToday = usageToday + proxies.length;
+    const willExhaustLimit = newUsageToday >= (user?.daily_limit || 0);
+
     try {
       const proxyIds = proxies.map(p => p.id);
       
@@ -307,8 +321,28 @@ export const Home: React.FC = () => {
         amount: proxies.length
       });
 
-      // Update generation time when IPs are actually used
-      await updateUserGenerationTime();
+      // Only start cooldown if this usage exhausts the daily limit
+      if (willExhaustLimit && user?.cooldown_minutes) {
+        const now = new Date();
+        const nextGeneration = new Date(now.getTime() + user.cooldown_minutes * 60 * 60 * 1000);
+        
+        const { error } = await supabase
+          .from('users')
+          .update({
+            last_generation_at: now.toISOString(),
+            next_generation_at: nextGeneration.toISOString()
+          })
+          .eq('id', user.id);
+
+        if (!error) {
+          // Update local user state
+          user.last_generation_at = now.toISOString();
+          user.next_generation_at = nextGeneration.toISOString();
+          checkCooldownStatus();
+          
+          toast.info(`দৈনিক লিমিট শেষ! ${user.cooldown_minutes} ঘন্টা পর আবার IP জেনারেট করতে পারবেন।`);
+        }
+      }
 
       await fetchTodayUsage();
     } catch (error) {
@@ -405,6 +439,7 @@ export const Home: React.FC = () => {
       
       toast.success(`${proxies.length} IPs copied to clipboard`);
 
+      // Update generation time only if this will exhaust the daily limit
       await markProxiesAsUsed();
       setProxies([]);
     } catch (error) {
