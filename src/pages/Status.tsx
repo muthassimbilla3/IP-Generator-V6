@@ -4,6 +4,7 @@ import { supabase, User, UsageLog } from '../lib/supabase';
 import { Users, Activity, TrendingUp, Calendar, Database, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import QuickLimitSetter from '../components/QuickLimitSetter';
+import CooldownManager from '../components/CooldownManager';
 
 interface UserStats {
   user: User;
@@ -278,6 +279,12 @@ export const Status: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Last Used
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Next Generation
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -349,6 +356,40 @@ export const Status: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {stat.lastUsed ? new Date(stat.lastUsed).toLocaleString() : 'Never'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {stat.user.next_generation_at ? (
+                          <div>
+                            <div className="text-xs">
+                              {new Date(stat.user.next_generation_at) > new Date() ? (
+                                <span className="text-orange-600 font-medium">
+                                  {Math.ceil((new Date(stat.user.next_generation_at).getTime() - Date.now()) / (1000 * 60 * 60))}ঘ বাকি
+                                </span>
+                              ) : (
+                                <span className="text-green-600 font-medium">এখনই পারবে</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {new Date(stat.user.next_generation_at).toLocaleString('bn-BD', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-green-600 text-xs font-medium">এখনই পারবে</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex items-center space-x-2">
+                          <CooldownManager
+                            user={stat.user}
+                            onUpdate={fetchUserStats}
+                            userRole={user?.role || 'user'}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}
