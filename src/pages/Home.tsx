@@ -43,7 +43,7 @@ export const Home: React.FC = () => {
   }, [cooldownRemaining]);
 
   const checkCooldownStatus = () => {
-    if (!user || !user.next_generation_at) {
+    if (!user?.id || !user.next_generation_at) {
       setCooldownRemaining(0);
       setNextGenerationTime(null);
       return;
@@ -77,7 +77,7 @@ export const Home: React.FC = () => {
   };
 
   const updateUserGenerationTime = async () => {
-    if (!user || !user.cooldown_minutes) return;
+    if (!user?.id || !user.cooldown_minutes) return;
 
     // Only start cooldown if user has exhausted their daily limit
     const newUsageToday = usageToday + proxies.length;
@@ -98,23 +98,22 @@ export const Home: React.FC = () => {
           last_generation_at: now.toISOString(),
           next_generation_at: nextGeneration.toISOString()
         })
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .single();
 
       if (error) throw error;
 
       // Update local user state
-      if (user) {
-        user.last_generation_at = now.toISOString();
-        user.next_generation_at = nextGeneration.toISOString();
-        checkCooldownStatus();
-      }
+      user.last_generation_at = now.toISOString();
+      user.next_generation_at = nextGeneration.toISOString();
+      checkCooldownStatus();
     } catch (error) {
       console.error('Error updating generation time:', error);
     }
   };
 
   const fetchTodayUsage = async () => {
-    if (!user) return;
+    if (!user?.id) return;
 
     try {
       const today = new Date();
@@ -158,7 +157,7 @@ export const Home: React.FC = () => {
   };
 
   const generateProxies = async () => {
-    if (!user) return;
+    if (!user?.id) return;
     if (!validateAmount(amount)) return;
     if (cooldownRemaining > 0) {
       toast.error(`আপনি আরো ${formatCooldownTime(cooldownRemaining)} পর IP জেনারেট করতে পারবেন`);
@@ -206,7 +205,7 @@ export const Home: React.FC = () => {
   };
 
   const handleGenerateAllClick = async () => {
-    if (!user || remainingLimit <= 0) return;
+    if (!user?.id || remainingLimit <= 0) return;
 
     try {
       // Check for available proxies first
@@ -232,7 +231,7 @@ export const Home: React.FC = () => {
   };
 
   const generateAllRemainingProxies = async () => {
-    if (!user || remainingLimit <= 0) return;
+    if (!user?.id || remainingLimit <= 0) return;
     if (cooldownRemaining > 0) {
       toast.error(`আপনি আরো ${formatCooldownTime(cooldownRemaining)} পর IP জেনারেট করতে পারবেন`);
       return;
@@ -292,6 +291,10 @@ export const Home: React.FC = () => {
 
   const markProxiesAsUsed = async () => {
     if (proxies.length === 0) return;
+    if (!user?.id) {
+      console.error('User ID not found');
+      return;
+    }
 
     // Calculate if this usage will exhaust the daily limit
     const newUsageToday = usageToday + proxies.length;
@@ -305,7 +308,7 @@ export const Home: React.FC = () => {
         .from('proxies')
         .update({
           is_used: true,
-          used_by: user?.id,
+          used_by: user.id,
           used_at: new Date().toISOString()
         })
         .in('id', proxyIds);
@@ -317,12 +320,17 @@ export const Home: React.FC = () => {
 
       // Log usage
       await supabase.from('usage_logs').insert({
-        user_id: user?.id,
+        user_id: user.id,
         amount: proxies.length
       });
 
       // Only start cooldown if this usage exhausts the daily limit
       if (willExhaustLimit && user?.cooldown_minutes) {
+        if (!user.id) {
+          console.error('User ID not found');
+          return;
+        }
+        
         const now = new Date();
         const nextGeneration = new Date(now.getTime() + user.cooldown_minutes * 60 * 60 * 1000);
         
@@ -332,7 +340,8 @@ export const Home: React.FC = () => {
             last_generation_at: now.toISOString(),
             next_generation_at: nextGeneration.toISOString()
           })
-          .eq('id', user.id);
+          .eq('id', user.id)
+          .single();
 
         if (!error) {
           // Update local user state
@@ -341,6 +350,8 @@ export const Home: React.FC = () => {
           checkCooldownStatus();
           
           toast.info(`দৈনিক লিমিট শেষ! ${user.cooldown_minutes} ঘন্টা পর আবার IP জেনারেট করতে পারবেন।`);
+        } else {
+          console.error('Error updating user cooldown:', error);
         }
       }
 
