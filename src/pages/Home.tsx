@@ -187,7 +187,6 @@ export const Home: React.FC = () => {
       }
 
       setProxies(updatedProxies.slice(0, amount));
-      await updateUserGenerationTime();
       toast.success(`${amount} IPs generated successfully`);
     } catch (error) {
       toast.error('Error generating IPs');
@@ -273,7 +272,6 @@ export const Home: React.FC = () => {
       }
 
       setProxies(updatedProxies);
-      await updateUserGenerationTime();
       toast.success(`${updatedProxies.length} IPs generated successfully`);
     } catch (error) {
       toast.error('Error generating IPs');
@@ -308,6 +306,9 @@ export const Home: React.FC = () => {
         user_id: user?.id,
         amount: proxies.length
       });
+
+      // Update generation time when IPs are actually used
+      await updateUserGenerationTime();
 
       await fetchTodayUsage();
     } catch (error) {
